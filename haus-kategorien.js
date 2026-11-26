@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.3
+// haus-kategorien v1.0.4
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -78,6 +78,14 @@
 
   const ohneLeer = (o) => { Object.keys(o).forEach((x) => o[x] === undefined && delete o[x]); return o; };
 
+  // Badges für die Raum-Überschrift: Leistungssensor je Gerät (Muster mit {objekt}), nur sichtbar solange > 0 W
+  function leistungsBadges(k, ids, muster, farbe) {
+    if (!muster) return [];
+    return ids.map((id) => muster.replace("{objekt}", obj(id))).filter((s) => k.hass.states[s])
+      .map((s) => ({ type: "entity", entity: s, show_icon: true, show_state: true, color: farbe,
+        visibility: [{ condition: "numeric_state", entity: s, above: 0 }] }));
+  }
+
   // ---------- Kategorie-Definitionen ----------
   const DEF = {
     licht: {
@@ -90,15 +98,8 @@
         return { type: "tile", entity: id, name, features: dimmbar ? [{ type: "light-brightness" }] : [],
           features_position: "inline", grid_options: { columns: 12 } };
       },
-      // Leistung je Lampe als Badge in der Raum-Überschrift, nur solange die Lampe Strom braucht.
-      // Muster aus der Konfiguration, z. B. licht_leistung: "sensor.licht_{objekt}_leistung"
-      badges: (k, ids) => {
-        const muster = k.cfg.licht_leistung;
-        if (!muster) return [];
-        return ids.map((id) => muster.replace("{objekt}", obj(id))).filter((s) => k.hass.states[s])
-          .map((s) => ({ type: "entity", entity: s, show_icon: true, show_state: true, color: "amber",
-            visibility: [{ condition: "numeric_state", entity: s, above: 0 }] }));
-      },
+      // Leistung je Lampe als Badge in der Raum-Überschrift, z. B. licht_leistung: "sensor.licht_{objekt}_leistung"
+      badges: (k, ids) => leistungsBadges(k, ids, k.cfg.licht_leistung, "amber"),
     },
     beschattung: {
       raumBehalten: true,
@@ -106,10 +107,10 @@
       karte: (k, id, name) => ohneLeer({
         type: "custom:beschattung-karte", entity: id, name,
         automatik: k.hass.states["switch." + obj(id)] ? "switch." + obj(id) : undefined,
-        leistung: k.cfg.beschattung_leistung && k.hass.states[k.cfg.beschattung_leistung.replace("{objekt}", obj(id))]
-          ? k.cfg.beschattung_leistung.replace("{objekt}", obj(id)) : undefined,
         schritte: 7, grid_options: { columns: 12 },
       }),
+      // Leistung je Behang als Badge in der Raum-Überschrift, z. B. beschattung_leistung: "sensor.beschattung_{objekt}_leistung"
+      badges: (k, ids) => leistungsBadges(k, ids, k.cfg.beschattung_leistung, "purple"),
       oben: (k) => {
         const c = k.cfg, cards = [{ type: "heading", heading: "Zentral", icon: "mdi:window-shutter-auto" }];
         if (k.hass.states[c.automatik_alle]) cards.push({ type: "tile", entity: c.automatik_alle, name: "Automatik alle Beschattungen",

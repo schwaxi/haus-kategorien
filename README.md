@@ -67,7 +67,7 @@ Fehlende Einträge werden übersprungen.
 | `heizung_geraete` | Liste |
 | `energie` | Objekt |
 | `licht_leistung` | Text: Muster für den Leistungssensor je Lampe, `{objekt}` = Objekt-ID der Lampe (z. B. `sensor.licht_{objekt}_leistung`). Die Leistung erscheint als Badge in der Raum-Überschrift, solange die Lampe Strom braucht. |
-| `beschattung_leistung` | Text: Muster für den Leistungssensor je Behang, `{objekt}` = Objekt-ID des Behangs (z. B. `sensor.beschattung_{objekt}_leistung`). Wird als `leistung` an die `beschattung-karte` übergeben (ab 1.0.2), die Watt erscheinen während der Fahrt hinter dem Namen. |
+| `beschattung_leistung` | Text: Muster für den Leistungssensor je Behang, `{objekt}` = Objekt-ID des Behangs (z. B. `sensor.beschattung_{objekt}_leistung`). Die Leistung erscheint als Badge in der Raum-Überschrift, solange der Behang fährt. |
 
 Beispiel (Ausschnitt):
 
