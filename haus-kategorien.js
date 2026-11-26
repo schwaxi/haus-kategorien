@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.0
+// haus-kategorien v1.0.1
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -301,13 +301,17 @@
       oben: (k) => {
         const c = k.cfg;
         if (!k.hass.states[c.wetter]) return [];
-        if (customElements.get("wetter-karte")) {
+        if (customElements.get("wetter-karte") || customElements.get("vorhersage-karte")) {
           const station = { temperatur: c.aussen_temp, luftfeuchte: c.aussen_feuchte, luftdruck: c.luftdruck,
             wind_richtung: c.wind_richtung, wind_geschwindigkeit: c.wind_geschwindigkeit };
-          const out = [{ type: "grid", column_span: 2, cards: [{ type: "heading", heading: "Vorhersage heute (stündlich)", icon: "mdi:crystal-ball" },
-              Object.assign({ type: "custom:wetter-karte", entity: c.wetter, typ: "hourly", anzahl: 24, kopf: true, grid_options: { columns: "full" } }, station)] },
-            { type: "grid", column_span: 2, cards: [{ type: "heading", heading: "Vorhersage Woche (täglich)", icon: "mdi:calendar-week" },
-              { type: "custom:wetter-karte", entity: c.wetter, typ: "daily", anzahl: 7, grid_options: { columns: "full" } }] }];
+          // Vorhersage-Karte (Tagesliste, aufklappbar) bevorzugt, sonst die beiden Grafiken
+          const out = customElements.get("vorhersage-karte")
+            ? [{ type: "grid", column_span: 2, cards: [{ type: "heading", heading: "Vorhersage", icon: "mdi:crystal-ball" },
+                Object.assign({ type: "custom:vorhersage-karte", entity: c.wetter, kopf: true, grid_options: { columns: "full" } }, station)] }]
+            : [{ type: "grid", column_span: 2, cards: [{ type: "heading", heading: "Vorhersage heute (stündlich)", icon: "mdi:crystal-ball" },
+                Object.assign({ type: "custom:wetter-karte", entity: c.wetter, typ: "hourly", anzahl: 24, kopf: true, grid_options: { columns: "full" } }, station)] },
+              { type: "grid", column_span: 2, cards: [{ type: "heading", heading: "Vorhersage Woche (täglich)", icon: "mdi:calendar-week" },
+                { type: "custom:wetter-karte", entity: c.wetter, typ: "daily", anzahl: 7, grid_options: { columns: "full" } }] }];
           if (customElements.get("sonnen-karte")) out.push({ type: "grid", column_span: 2, cards: [
             { type: "heading", heading: "Sonne heute", icon: "mdi:weather-sunset" }, { type: "custom:sonnen-karte", grid_options: { columns: "full" } }] });
           if (customElements.get("windrose-card") && k.hass.states[c.wind_richtung] && k.hass.states[c.wind_geschwindigkeit]) out.push({ type: "grid", column_span: 2, cards: [
@@ -632,4 +636,4 @@
   if (!customElements.get("ll-strategy-view-haus-kategorie")) customElements.define("ll-strategy-view-haus-kategorie", HausKategorieView);
 })();
 
-console.info("%c haus-kategorien %c v1.0.0 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");
+console.info("%c haus-kategorien %c v1.0.1 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");
