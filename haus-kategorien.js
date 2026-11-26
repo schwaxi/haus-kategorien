@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.2
+// haus-kategorien v1.0.3
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -106,6 +106,8 @@
       karte: (k, id, name) => ohneLeer({
         type: "custom:beschattung-karte", entity: id, name,
         automatik: k.hass.states["switch." + obj(id)] ? "switch." + obj(id) : undefined,
+        leistung: k.cfg.beschattung_leistung && k.hass.states[k.cfg.beschattung_leistung.replace("{objekt}", obj(id))]
+          ? k.cfg.beschattung_leistung.replace("{objekt}", obj(id)) : undefined,
         schritte: 7, grid_options: { columns: 12 },
       }),
       oben: (k) => {
