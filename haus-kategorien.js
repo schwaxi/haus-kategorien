@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.1
+// haus-kategorien v1.0.2
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -89,6 +89,15 @@
         const dimmbar = dom(id) === "light" && modi.some((m) => m !== "onoff");
         return { type: "tile", entity: id, name, features: dimmbar ? [{ type: "light-brightness" }] : [],
           features_position: "inline", grid_options: { columns: 12 } };
+      },
+      // Leistung je Lampe als Badge in der Raum-Überschrift, nur solange die Lampe Strom braucht.
+      // Muster aus der Konfiguration, z. B. licht_leistung: "sensor.licht_{objekt}_leistung"
+      badges: (k, ids) => {
+        const muster = k.cfg.licht_leistung;
+        if (!muster) return [];
+        return ids.map((id) => muster.replace("{objekt}", obj(id))).filter((s) => k.hass.states[s])
+          .map((s) => ({ type: "entity", entity: s, show_icon: true, show_state: true, color: "amber",
+            visibility: [{ condition: "numeric_state", entity: s, above: 0 }] }));
       },
     },
     beschattung: {
@@ -484,8 +493,11 @@
     }
     const raumRang = (a) => Math.min(...proRaum.get(a).map(rang));
     const block = (titel, icon, eintraege, areaName) => {
-      const karten = [ohneLeer({ type: "heading", heading: titel, heading_style: "subtitle", icon: icon || undefined }),
-        ...eintraege.sort(sortiert).map((id) => def.karte(k, id, kurz(k, id, def.raumBehalten ? null : areaName)))];
+      eintraege.sort(sortiert);
+      const badges = def.badges ? def.badges(k, eintraege) : [];
+      const karten = [ohneLeer({ type: "heading", heading: titel, heading_style: "subtitle", icon: icon || undefined,
+        badges: badges.length ? badges : undefined }),
+        ...eintraege.map((id) => def.karte(k, id, kurz(k, id, def.raumBehalten ? null : areaName)))];
       return { karten, h: karten.reduce((s, c) => s + hoehe(k, c), 0) };
     };
     // Blöcke wie im Mauerwerk immer in die gerade kürzeste Spalte legen

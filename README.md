@@ -66,6 +66,7 @@ Fehlende Einträge werden übersprungen.
 | `fernseher` | Liste |
 | `heizung_geraete` | Liste |
 | `energie` | Objekt |
+| `licht_leistung` | Text: Muster für den Leistungssensor je Lampe, `{objekt}` = Objekt-ID der Lampe (z. B. `sensor.licht_{objekt}_leistung`). Die Leistung erscheint als Badge in der Raum-Überschrift, solange die Lampe Strom braucht. |
 
 Beispiel (Ausschnitt):
 
