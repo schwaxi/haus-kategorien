@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.5
+// haus-kategorien v1.1.0
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -630,8 +630,219 @@
     return { title: "Start", path: "start", icon: "mdi:home", type: "sections", max_columns: 4, sections };
   }
 
+  // ---------- Grafischer Editor (Dashboard bearbeiten -> Formular statt YAML) ----------
+  // Baut ein ha-form aus Abschnitten. Listen von Objekten (Puffer, Heizkreise, Fernseher ...) nutzen den
+  // Objekt-Selektor mit Feldern (Hinzufügen/Bearbeiten/Entfernen); ältere HA-Versionen zeigen dort ein YAML-Feld.
+  // Unbekannte Schlüssel bleiben erhalten, leere Werte werden beim Speichern entfernt.
+  const ent = (domain, extra) => ({ entity: Object.assign(domain ? { domain } : {}, extra || {}) });
+  const TEXT = { text: {} }, BOOL = { boolean: {} }, ICON = { icon: {} };
+  const ZAHL = (min, max, step) => ({ number: Object.assign({ mode: "box" }, min != null ? { min } : {}, max != null ? { max } : {}, step ? { step } : {}) });
+  const f = (name, label, selector, helper) => ohneLeer({ name, label, selector, helper });
+  const feld = (label, selector, required) => ({ label, selector, required: !!required });
+  const liste = (fields, label_field) => ({ object: { multiple: true, label_field, fields } });
+  const objekt = (fields) => ({ object: { fields } });
+  const abschnitt = (title, icon, schema, name) => name
+    ? { type: "expandable", name, title, icon, schema }
+    : { type: "expandable", flatten: true, name: "_" + title, title, icon, schema };
+  const EIN = { power: feld("Steckdose zum Einschalten", ent("switch")), wecken: feld("Aufwecken über (HDMI-CEC)", ent("media_player")),
+    einschalten: feld("Einschalt-Skript (z. B. Wake-on-LAN)", ent("script")) };
+  const SENDER = liste({ name: feld("Name", TEXT, true), id: feld("Medien-ID (media-source://…)", TEXT, true), icon: feld("Icon", ICON) }, "name");
+
+  function editorSchema(benutzer) {
+    const s = ent("sensor");
+    return [
+      abschnitt("Allgemein", "mdi:cog", [
+        f("etagen", "Etagen (Reihenfolge)", { floor: { multiple: true } }),
+        f("ausblenden", "Kategorien ausblenden", { select: { multiple: true, mode: "dropdown", options: KATEGORIEN.map((k) => ({ value: k.id, label: k.titel })) } }),
+        f("entitaeten_ausblenden", "Entities ausblenden", ent(null, { multiple: true })),
+        f("spalten", "Spalten (leer = automatisch)", ZAHL(1, 6)),
+        f("ohne_raum", "Entities ohne Raum anzeigen", BOOL),
+      ]),
+      abschnitt("Wetter", "mdi:weather-partly-cloudy", [
+        f("wetter", "Wetter-Entity", ent("weather")), f("aussen_temp", "Außentemperatur", s), f("aussen_feuchte", "Luftfeuchte außen", s),
+        f("luftdruck", "Luftdruck", s), f("regen_heute", "Regen heute", s), f("regen_gesamt", "Regen gesamt", s),
+        f("wind_richtung", "Windrichtung", s), f("wind_geschwindigkeit", "Windgeschwindigkeit", s), f("wind_boee", "Windböe", s),
+      ]),
+      abschnitt("Energie", "mdi:solar-power-variant", [
+        f("pv", "PV-Leistung", s), f("haus", "Hausverbrauch", s), f("batterie", "Batterie Ladestand", s),
+        f("batterie_leistung", "Batterie Laden/Entladen", s), f("netz", "Netz (Einspeisung +)", s),
+        f("pv_heute", "PV heute", s), f("bezug_heute", "Netzbezug heute", s), f("einspeisung_heute", "Einspeisung heute", s),
+        f("haus_aufteilung", "Aufteilung Hausverbrauch (Energiefluss)", liste({ entity: feld("Leistung", s, true), name: feld("Name", TEXT),
+          icon: feld("Icon", ICON), color: feld("Farbe (z. B. #42a5f5)", TEXT) }, "name")),
+        abschnitt("Tagesübersicht & Bilanz", "mdi:chart-box", [
+          f("pv", "PV heute", s), f("bezug", "Bezug heute", s), f("einspeisung", "Einspeisung heute", s),
+          f("laden", "Batterie geladen heute", s), f("entladen", "Batterie entladen heute", s), f("soc", "Batterie Ladestand", s),
+          f("prognose_heute", "Prognose heute", s), f("prognose_rest", "Prognose Rest heute", s), f("prognose_morgen", "Prognose morgen", s),
+          f("batterie_kwh", "Batteriegröße (kWh)", ZAHL(0, null, 0.1)), f("batterie_name", "Batterie-Name", TEXT),
+          f("preis_bezug", "Preis Bezug (€/kWh)", ZAHL(0, null, 0.001)), f("preis_einspeisung", "Preis Einspeisung (€/kWh)", ZAHL(0, null, 0.001)),
+        ], "energie"),
+      ]),
+      abschnitt("Licht & Beschattung", "mdi:lightbulb-group", [
+        f("licht_leistung", "Leistungssensor je Lampe (Muster)", TEXT, "{objekt} = Objekt-ID der Lampe, z. B. sensor.licht_{objekt}_leistung"),
+        f("beschattung_leistung", "Leistungssensor je Behang (Muster)", TEXT, "{objekt} = Objekt-ID des Behangs, z. B. sensor.beschattung_{objekt}_leistung"),
+        f("automatik_alle", "Automatik alle Beschattungen", ent(["switch", "input_boolean"])),
+        f("service_prefix", "Service-Schalter (Anfang der Entity-ID)", TEXT, "Alle Entities, deren ID so beginnt, kommen in die Karte „Service Beschattung“"),
+        f("haustuer", "Haustür (Schloss)", ent("lock")),
+      ]),
+      abschnitt("Lüftung", "mdi:fan", [
+        f("lueftung", "Lüftungsanlage", ent("climate")), f("stosslueften", "Stoßlüften (Skript)", ent("script")),
+        f("stosslueften_timer", "Dauer Stoßlüften", ent(["input_number", "number"])), f("filter_reset", "Filter zurücksetzen", ent(["button", "input_button", "script"])),
+        f("lueftung_bild", "Anlagenbild (URL, z. B. /local/…)", TEXT), f("ueberhitzungsschutz", "Überhitzungsschutz", ent(["automation", "switch", "input_boolean"])),
+      ]),
+      abschnitt("Wasser", "mdi:water", [
+        f("wasser_zaehler", "Wasserzähler (Zählerstand)", s), f("wasser_tag", "Verbrauch heute", s),
+        f("wasser_monat", "Verbrauch Monat", s), f("wasser_teich", "Wasserstand Teich", s),
+      ]),
+      abschnitt("Heizung", "mdi:radiator", [
+        f("heizung_raum", "Heizraum", { area: {} }),
+        f("heizung_geraete", "Reihenfolge der Geräte (Gerätenamen)", { text: { multiple: true } }),
+        f("schnecken_leistung", "Schnecken Leistung", s), f("schnecken_tag", "Schnecken Verbrauch heute", s),
+        f("schnecken_monat", "Schnecken Verbrauch Monat", s), f("schnecken_verbrauch", "Schnecken Verbrauch gesamt", s),
+        abschnitt("Kessel", "mdi:fire", [
+          f("titel", "Titel", TEXT), f("zustand", "Kesselzustand", s), f("temperatur", "Kesseltemperatur", s), f("soll", "Solltemperatur", ent(["number", "sensor"])),
+          f("heizen", "Heizen (an/aus)", ent("binary_sensor")), f("abgas", "Abgastemperatur", s), f("ruecklauf", "Rücklauf", s),
+          f("sauerstoff", "Restsauerstoff", s), f("saugzug", "Saugzug", s), f("leistung", "Leistung", s), f("meldungen", "Aktive Meldungen", s),
+          f("aschebox", "Aschebox voll", ent("binary_sensor")), f("spannung", "Spannung (Phasen)", ent("sensor", { multiple: true })),
+          f("schnecken", "Schnecken (Stromaufnahme)", liste({ name: feld("Name", TEXT, true), strom: feld("Stromaufnahme", s, true) }, "name")),
+          f("min", "Skala min (°C)", ZAHL()), f("max", "Skala max (°C)", ZAHL()),
+        ], "kessel"),
+        f("puffer", "Pufferspeicher", liste({ titel: feld("Titel", TEXT), kombi: feld("Kombispeicher (mit Warmwasser)", BOOL),
+          ladezustand: feld("Ladezustand", s), oben: feld("Temperatur oben", s, true), mitte: feld("Temperatur mitte", s), unten: feld("Temperatur unten", s),
+          pumpe: feld("Pufferpumpe", s), warmwasser: feld("Warmwasser", s), warmwasser_soll: feld("Warmwasser Soll", ent(["number", "sensor"])),
+          waerme: feld("Wärmeinhalt", s), leistung: feld("Leistung", s), entnahme_heute: feld("Entnahme heute", s), entnahme_gesamt: feld("Entnahme gesamt", s),
+          min: feld("Skala min (°C)", ZAHL()), max: feld("Skala max (°C)", ZAHL()), ungueltig_ab: feld("Ungültig ab (°C)", ZAHL()) }, "titel")),
+        f("waermemenge", "Wärmemenge (je Puffer, gleiche Reihenfolge)", liste({ titel: feld("Titel", TEXT), waerme: feld("Wärmeinhalt", s),
+          leistung: feld("Leistung netto", s), heute: feld("Verbrauch heute", s), gesamt: feld("Verbrauch gesamt", s) }, "titel")),
+        f("heizkreise", "Heizkreise", liste({ titel: feld("Titel", TEXT),
+          typ: feld("Typ", { select: { mode: "dropdown", options: [{ value: "radiator", label: "Heizkörper" }, { value: "fussboden", label: "Fußbodenheizung" }] } }),
+          vorlauf: feld("Vorlauf Ist", s, true), vorlauf_soll: feld("Vorlauf Soll", s), pumpe: feld("Pumpe", ent(["binary_sensor", "sensor", "switch"])),
+          raum: feld("Raumtemperatur", s), aussen: feld("Außentemperatur", s), betriebsart: feld("Betriebsart", ent(["select", "input_select"])),
+          min: feld("Skala min (°C)", ZAHL()), max: feld("Skala max (°C)", ZAHL()) }, "titel")),
+      ]),
+      abschnitt("Sicherheit", "mdi:shield-home", [f("alarm", "Alarmanlage", ent("alarm_control_panel"))]),
+      abschnitt("Medien", "mdi:speaker", [
+        abschnitt("AV-Receiver", "mdi:audio-video", [
+          f("entity", "Receiver (Hauptzone)", ent("media_player")), f("player", "Abspieler für Titel", ent("media_player")), f("name", "Name", TEXT),
+          f("ausblenden", "Doppelte Player ausblenden", ent("media_player", { multiple: true })),
+          f("weitere", "Übrige Quellen als Auswahl (Standard: an)", BOOL), f("fernbedienung", "Fernbedienung (Standard: an)", BOOL),
+          f("quellen", "Quellen-Tasten", liste({ quelle: feld("Quelle (wie am Receiver)", TEXT, true), name: feld("Name", TEXT), icon: feld("Icon", ICON),
+            remote: feld("Fernbedienung (remote)", ent("remote")), webos: feld("Fernbedienung (webOS-Player)", ent("media_player")) }, "name")),
+          ...Object.entries(EIN).map(([n, x]) => f(n, x.label, x.selector)),
+        ], "receiver"),
+        abschnitt("Sat-Receiver", "mdi:satellite-variant", [
+          f("entity", "Sat-Receiver", ent("media_player")), f("name", "Name", TEXT), f("tasten", "Tasten-Aktion (z. B. rest_command.vu_taste)", TEXT),
+          f("tv", "Fernseher", ent("media_player")), f("tv_eingang", "Eingang am Fernseher", TEXT), f("sender", "Sender", { text: { multiple: true } }),
+          ...Object.entries(EIN).map(([n, x]) => f(n, x.label, x.selector)),
+        ], "sat"),
+        f("radio", "Radios", liste(Object.assign({ entity: feld("Player", ent("media_player"), true), name: feld("Name", TEXT),
+          cast: feld("Cast-Player", ent("media_player")) }, EIN, { suche: feld("Sendersuche", BOOL),
+          laender: feld("Länder für die Suche (z. B. AT, DE)", { text: { multiple: true } }),
+          ausblenden: feld("Doppelte Player ausblenden", ent("media_player", { multiple: true })), sender: feld("Sender", SENDER) }), "name")),
+        f("fernseher", "Fernseher", liste(Object.assign({ entity: feld("Fernseher", ent("media_player"), true), name: feld("Name", TEXT),
+          remote: feld("Fernbedienung (remote)", ent("remote")), webos: feld("webOS-Player", ent("media_player")), cast: feld("Cast-Player", ent("media_player")),
+          tv: feld("Bildschirm (Player)", ent("media_player")), lautstaerke: feld("Lautstärke über", ent("media_player")),
+          receiver_quelle: feld("Quelle am Receiver", TEXT) }, EIN, { fernbedienung: feld("Fernbedienung (Standard: an)", BOOL),
+          suche: feld("Sendersuche", BOOL), laender: feld("Länder für die Suche (z. B. AT, DE)", { text: { multiple: true } }),
+          ausblenden: feld("Doppelte Player ausblenden", ent("media_player", { multiple: true })),
+          apps: feld("Apps", liste({ name: feld("Name", TEXT, true), app: feld("App / URL", TEXT), paket: feld("Paketname", TEXT), icon: feld("Icon", ICON) }, "name")),
+          eingaenge: feld("Eingänge", liste({ name: feld("Name", TEXT, true), quelle: feld("Quelle (z. B. HDMI-1)", TEXT, true),
+            geraet: feld("Gerät", ent("media_player")), icon: feld("Icon", ICON) }, "name")),
+          sender: feld("Sender", SENDER) }), "name")),
+      ]),
+      abschnitt("Service-Dashboard", "mdi:wrench-cog", [
+        f("dashboard", "Dashboard-Pfad (z. B. service-einstellungen)", TEXT),
+        f("benutzer", "Sichtbar für", benutzer && benutzer.length
+          ? { select: { multiple: true, mode: "list", options: benutzer } } : { text: { multiple: true } }),
+        abschnitt("Seite je Kategorie", "mdi:file-tree", KATEGORIEN.map((k) => f(k.id, k.titel, TEXT)), "seiten"),
+      ], "service"),
+      abschnitt("Reihenfolge", "mdi:sort", KATEGORIEN.map((k) => f(k.id, k.titel, ent(null, { multiple: true, reorder: true }))), "reihenfolge"),
+    ];
+  }
+
+  // Leere Werte ("", null, [], {}) entfernen; false und 0 bleiben
+  function bereinigen(v) {
+    if (Array.isArray(v)) return v.map(bereinigen).filter((x) => !leer(x));
+    if (v && typeof v === "object") {
+      const o = {};
+      for (const [k, x] of Object.entries(v)) { const b = bereinigen(x); if (!leer(b)) o[k] = b; }
+      return o;
+    }
+    return v;
+  }
+  const leer = (x) => x === undefined || x === null || x === "" || (Array.isArray(x) && !x.length)
+    || (x && typeof x === "object" && !Array.isArray(x) && !Object.keys(x).length);
+
+  async function formLaden() {
+    if (customElements.get("ha-form")) return;
+    try {
+      const h = await window.loadCardHelpers();
+      const c = await h.createCardElement({ type: "entities", entities: [] });
+      await c.constructor.getConfigElement();
+    } catch (e) { /* ha-form kommt dann mit dem Dialog */ }
+    await Promise.race([customElements.whenDefined("ha-form"), new Promise((r) => setTimeout(r, 3000))]);
+  }
+
+  class HausKategorienEditor extends HTMLElement {
+    set hass(h) {
+      this._hass = h;
+      if (this._form) this._form.hass = h;
+      this._benutzerLaden();
+    }
+    setConfig(config) {
+      this._config = config || {};
+      this._render();
+    }
+    async connectedCallback() {
+      await formLaden();
+      this._render();
+    }
+    async _benutzerLaden() {
+      if (this._benutzerGeladen || !this._hass || !this._hass.user || !this._hass.user.is_admin) return;
+      this._benutzerGeladen = true;
+      try {
+        const u = await this._hass.callWS({ type: "config/auth/list" });
+        this._benutzer = u.filter((x) => !x.system_generated).map((x) => ({ value: x.id, label: x.name || x.username || x.id }));
+        this._schema = null;
+        this._render();
+      } catch (e) { /* ohne Adminrechte: Benutzer-IDs als Text */ }
+    }
+    _render() {
+      if (!this._config || !customElements.get("ha-form")) return;
+      if (!this._form) {
+        this._form = document.createElement("ha-form");
+        this._form.computeLabel = (s) => s.label || s.title || s.name;
+        this._form.computeHelper = (s) => s.helper;
+        this._form.addEventListener("value-changed", (ev) => { ev.stopPropagation(); this._geaendert(ev.detail.value); });
+        this.appendChild(this._form);
+      }
+      if (!this._schema) this._schema = editorSchema(this._benutzer);
+      const c = this._config;
+      // Verschachtelte Abschnitte brauchen ein Objekt, "ohne_raum" ist standardmäßig an
+      const sv = Object.assign({}, c.service, { seiten: Object.assign({}, c.service && c.service.seiten) });
+      this._form.hass = this._hass;
+      this._form.schema = this._schema;
+      this._form.data = Object.assign({}, c, { ohne_raum: c.ohne_raum !== false, energie: Object.assign({}, c.energie),
+        kessel: Object.assign({}, c.kessel), receiver: Object.assign({}, c.receiver), sat: Object.assign({}, c.sat),
+        service: sv, reihenfolge: Object.assign({}, c.reihenfolge) });
+    }
+    _geaendert(wert) {
+      const v = Object.assign({}, wert);
+      for (const k of Object.keys(v)) if (k.startsWith("_")) delete v[k];
+      if (v.ohne_raum !== false) delete v.ohne_raum;
+      const neu = Object.assign({ type: this._config.type || "custom:haus-kategorien" }, bereinigen(v));
+      if (v.ohne_raum === false) neu.ohne_raum = false;
+      this._config = neu;
+      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: neu }, bubbles: true, composed: true }));
+    }
+  }
+  if (!customElements.get("haus-kategorien-editor")) customElements.define("haus-kategorien-editor", HausKategorienEditor);
+
   // ---------- Registrierung ----------
   class HausKategorienStrategie extends HTMLElement {
+    static async getConfigElement() {
+      return document.createElement("haus-kategorien-editor");
+    }
+
     static async generate(config, hass) {
       const cfg = Object.assign({}, STD, config || {});
       delete cfg.type;
@@ -654,4 +865,4 @@
   if (!customElements.get("ll-strategy-view-haus-kategorie")) customElements.define("ll-strategy-view-haus-kategorie", HausKategorieView);
 })();
 
-console.info("%c haus-kategorien %c v1.0.5 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");
+console.info("%c haus-kategorien %c v1.1.0 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");

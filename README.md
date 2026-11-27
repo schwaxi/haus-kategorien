@@ -10,10 +10,22 @@ Erzeugt ein komplettes Dashboard: Startseite, Kategorien (Licht, Beschattung, Kl
 und darunter Etagen und Räume. Nutzt die übrigen Karten dieser Sammlung, wenn sie installiert sind
 (z. B. `puffer-karte`, `kessel-karte`, `fernseher-karte`, `energie-heute-karte`); fehlt eine, wird eine Standardkarte verwendet.
 
+### Grafischer Editor
+
+Ab v1.1.0 lassen sich alle Einstellungen ohne YAML bearbeiten: Dashboard öffnen → ✏️ **Bearbeiten**. Das Formular ist in
+aufklappbare Abschnitte gegliedert (Allgemein, Wetter, Energie, Licht & Beschattung, Lüftung, Wasser, Heizung, Sicherheit,
+Medien, Service-Dashboard, Reihenfolge) und bietet Entity-, Bereichs- und Etagen-Auswahl. Listen wie Pufferspeicher, Heizkreise,
+Radios oder Fernseher werden mit Hinzufügen/Bearbeiten/Entfernen gepflegt. Das funktioniert auch in verschachtelten Listen
+(z. B. Apps und Sender je Fernseher).
+
+Der Editor schreibt dieselbe Konfiguration wie bisher unter `strategy:`. Bestehende YAML-Dashboards funktionieren also
+unverändert. Leere Felder werden beim Speichern entfernt, unbekannte Schlüssel bleiben erhalten. Bei älteren Home-Assistant-Versionen
+ohne Objekt-Selektor mit Feldern erscheinen die Listen als YAML-Feld im Formular.
+
 ### Einstellungen
 
-Alle Einstellungen stehen in der Dashboard-Konfiguration unter `strategy:`. Der Code enthält keine Vorbelegung.
-Fehlende Einträge werden übersprungen.
+Alle Einstellungen stehen in der Dashboard-Konfiguration unter `strategy:` und werden dort auch vom grafischen Editor gespeichert.
+Der Code enthält keine Vorbelegung. Fehlende Einträge werden übersprungen.
 
 | Schlüssel | Art |
 |---|---|
