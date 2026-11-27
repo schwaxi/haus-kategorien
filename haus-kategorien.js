@@ -1,4 +1,4 @@
-// haus-kategorien v1.0.4
+// haus-kategorien v1.0.5
 // Dashboard-Strategie, einzeln installierbar (Home Assistant Marketplace / HACS, Kategorie Dashboard).
 // ===== Dashboard-Strategie "haus-kategorien" (Kategorien zuerst, darunter Etagen und Räume) =====
 (() => {
@@ -609,9 +609,12 @@
       ...t(c.batterie, "Batterie", { color: "green", features: [{ type: "bar-gauge", min: 0, max: 100 }] }), ...t(c.netz, "Netz")] });
     const alarmIds = Object.keys(hass.states).filter((id) => dom(id) === "binary_sensor" && sichtbar(k, id, true)
       && (ALARM_DC.includes(dc(hass.states[id])) || OFFEN_DC.includes(dc(hass.states[id]))));
+    // Status-LEDs von Geraeten (Kamera, Steckdose ...) und Konfig-/Diagnose-Lichter zaehlen nicht als Licht
+    const keinLicht = Object.keys(hass.states).filter((id) => dom(id) === "light" && (k.ents[id]?.entity_category
+      || /status[-_ ]?led/i.test(obj(id) + " " + (hass.states[id].attributes.friendly_name || ""))));
     sections.push({ type: "grid", cards: [{ type: "heading", heading: "Status", icon: "mdi:information-outline" },
       { type: "markdown", text_only: true, content:
-        "{% set licht = states.light | selectattr('state','eq','on') | list | count %}" +
+        `{% set licht = states.light | selectattr('state','eq','on') | rejectattr('entity_id','in',${JSON.stringify(keinLicht)}) | list | count %}` +
         "{% set tore = states.cover | selectattr('attributes.device_class','defined') | selectattr('attributes.device_class','in',['garage','gate']) | selectattr('state','in',['open','opening']) | list | count %}" +
         "{% set offen = states.binary_sensor | selectattr('attributes.device_class','defined') | selectattr('attributes.device_class','in',['door','window','garage_door','opening']) | selectattr('state','eq','on') | list | count %}" +
         "💡 **{{ licht }}** Lichter an  \n🚗 **{{ tore }}** Tore offen  \n🚪 **{{ offen }}** Türen/Fenster offen" },
@@ -651,4 +654,4 @@
   if (!customElements.get("ll-strategy-view-haus-kategorie")) customElements.define("ll-strategy-view-haus-kategorie", HausKategorieView);
 })();
 
-console.info("%c haus-kategorien %c v1.0.1 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");
+console.info("%c haus-kategorien %c v1.0.5 ", "color:#fff;background:#03a9f4;font-weight:700", "color:#03a9f4");
